@@ -1,6 +1,10 @@
 import asyncio
 import traceback
 
+import nodriver
+
+from app.Record import Record
+from crawl.Item import Item
 from nodriver_tools import BrowserAuto
 from logger import logger
 from parse_zhiwang import parse_result_page
@@ -11,12 +15,15 @@ class QuitError(Exception):
 
 
 class ScrapeMain:
-    def __init__(self, browser_auto: BrowserAuto):
+    def __init__(self, page: nodriver.Tab):
         self.batch_for_detail = 5
-        self.browser_auto = browser_auto
+        self.page = page
 
-    async def get_result_page(self, name, sort_by=None, year=None):
-        page = await self.browser_auto.browser.get('https://www.cnki.net/')
+    @classmethod
+    async def create(cls, tool: BrowserAuto, item: Item):
+        name = item.name
+
+        page = await tool.browser.get('https://www.cnki.net/', new_tab=True)
         entry = await page.find('中文文献、外文文献')  # 等待直到找到
 
         await entry.send_keys(name)
@@ -36,7 +43,12 @@ class ScrapeMain:
                 await page.reload(ignore_cache=False)
 
         assert succeed, '知网结果页打开失败'
+        return cls(page)
 
+    async def filter_result(self, item: Item):
+        year = item.year
+        sort_by = item.sort_by
+        page = self.page
         # 指定年份
         if year is not None:
             bar = await page.select('#ModuleGroupFilter')
@@ -63,9 +75,8 @@ class ScrapeMain:
             await li_sort.click()
             await page.wait(2)  # debug 等待更新
 
-        return page
-
-    async def next_page(self, page):
+    async def next_page(self):
+        page = self.page
         try:
             next_btn = await page.select('#PageNext', timeout=1)
         except asyncio.exceptions.TimeoutError:
@@ -80,46 +91,33 @@ class ScrapeMain:
 
         return True
 
-    async def search_pub(self, name, pages=None, sort_by=None, year=None):
-        """
-        :param pages: 爬取多少页的文献
-        :param name: 搜索关键词
-        :param sort_by: 排序根据 relevant, date, cite
-        :return:
-        """
-        # 进入页面
+    async def search_pub(self, item: Item):
+        page = self.page
+
         try:
-            page = await self.get_result_page(name, sort_by, year)
+           await self.filter_result(item)
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            raise Exception(f'搜索结果页失败 {e}')
+            logger.error(traceback.format_exc())
+            raise Exception(f'筛选结果出错 {e}')
 
         # 对每一页的文献
         page_i = 1
-        results = []
+        pages = item.pages
         try:
             while not (pages and page_i > pages):  # 当前页面与总爬取页面
                 logger.info(f'爬取第{page_i}页')
                 html_str = await page.get_content()
                 pubs = parse_result_page(html_str)
-                # 随即加入文献
-                results += pubs
-
-                # 分批爬取，减少浏览器压力
-                s = self.batch_for_detail
-                for i in range(0, len(pubs), s):
-                    tasks = [fill_detail(pub, browser) for pub in pubs[i:i + s]]
-                    await asyncio.gather(*tasks)  # 异常不抛出
+                yield pubs
 
                 # 进入下一页
-                if not self.next_page(page):
+                if not self.next_page():
                     break
 
                 page_i += 1
 
-            return results
-
         except QuitError as e:
             logger.error(f'发生异常，爬取中断 {e}')
-            return results  # 返回部分结果
+            raise
