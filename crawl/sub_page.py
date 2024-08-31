@@ -4,7 +4,6 @@ import traceback
 import bibtexparser
 import nodriver
 
-from nodriver_tools import BrowserAuto
 from logger import logger
 
 

@@ -15,6 +15,7 @@ class Runner:
         self.record = record
 
     async def run(self, item: Item):
+        logger.info(f'任务请求 {item}')
         async with self.browser_tool:
             try:
                 self.record.set_pages(item.pages)
@@ -25,11 +26,12 @@ class Runner:
                 raise Exception(f'搜索知网结果页失败 {e}')
 
             batch = 5
-            async for pubs in scrape_main:
+            async for pubs in scrape_main.search_pub(item):
                 # 分批爬取，减少浏览器压力
                 s = batch
                 for i in range(0, len(pubs), s):
                     tasks = [self.fill_pub(pub) for pub in pubs[i:i + s]]
+                    logger.info(f'准备异步爬取 {len(tasks)}')
                     await asyncio.gather(*tasks)  # 异常不抛出
 
     async def fill_pub(self, pub):

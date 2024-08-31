@@ -17,7 +17,7 @@ class Record:
         if not self.pages:
             return 0.0
 
-        total = 10 * self.pages
+        total = 20 * self.pages  # debug 每一页20篇
         done = len(self.filled_pubs) + len(self.fail_pubs)
         return done / total
 

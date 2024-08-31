@@ -5,9 +5,9 @@ import nodriver
 
 from app.Record import Record
 from crawl.Item import Item
-from nodriver_tools import BrowserAuto
+from crawl.nodriver_tools import BrowserAuto
 from logger import logger
-from parse_zhiwang import parse_result_page
+from crawl.parse_zhiwang import parse_result_page
 
 
 class QuitError(Exception):
@@ -106,17 +106,18 @@ class ScrapeMain:
         page_i = 1
         pages = item.pages
         try:
-            while not (pages and page_i > pages):  # 当前页面与总爬取页面
+            while True:
                 logger.info(f'爬取第{page_i}页')
                 html_str = await page.get_content()
                 pubs = parse_result_page(html_str)
                 yield pubs
 
                 # 进入下一页
-                if not self.next_page():
-                    break
-
                 page_i += 1
+                if pages and page_i > pages:  # 当前页面 vs 总爬取页面
+                    break
+                if not await self.next_page():
+                    break
 
         except QuitError as e:
             logger.error(f'发生异常，爬取中断 {e}')

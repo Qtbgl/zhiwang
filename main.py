@@ -1,4 +1,4 @@
-from app.server import app
+from app import *
 
 
 @app.get("/")
