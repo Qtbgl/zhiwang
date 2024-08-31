@@ -1,5 +1,6 @@
 def is_key(api_key):
-    return api_key == 'ccc'
+    from data import api_config
+    return api_key == api_config.app_key
 
 
 def check_key(obj: dict):
