@@ -1,6 +1,7 @@
 import asyncio
 import traceback
 
+import bibtexparser
 import nodriver
 
 from nodriver_tools import BrowserAuto
@@ -13,7 +14,6 @@ class ScrapeSub:
 
     async def fill_detail(self, pub):
         page = self.page
-        await page.wait(2)
         await page.wait_for('#ChDivSummary')
         # 用nodriver自带网页解析
         # 展开摘要
@@ -56,3 +56,37 @@ class ScrapeSub:
         a = await page.find(text='更多引用格式')
         bib_link = a.attrs['href']
         pub['bib_link'] = bib_link
+
+
+class ScrapeBib:
+    def __init__(self, page: nodriver.Tab):
+        self.page = page
+
+    async def get_bib(self):
+        page = self.page
+        await page.wait_for(text='文献导出格式')
+        # 点中bib格式
+        a_bib = await page.select('div.export-sidebar-a > ul > li > a[displaymode="BibTex"]')
+        await a_bib.click()
+        await page.wait(2)
+        # 等待后再尝试
+        tag_bib = await page.select('#result > ul > li', timeout=10)
+        bib_str = tag_bib.text_all.strip()
+        return bib_str
+
+    async def fill_bib(self, pub, max_tries):
+        bib_str = await self.get_bib()
+        for i in range(max_tries):
+            # 检查格式
+            try:
+                bib_db = bibtexparser.loads(bib_str)
+                assert len(bib_db.entries) > 0
+                entry = bib_db.entries[0]
+                entry['abstract'] = pub['abstract']
+                pub['bib'] = bibtexparser.dumps(bib_db)
+                return
+            except Exception as e:
+                logger.error(f'bibtexparser失败{i + 1} {e}')
+                bib_str = await self.get_bib()
+
+        raise Exception(f'bibtexparser无法解析 {bib_str}')
