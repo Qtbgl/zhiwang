@@ -30,11 +30,24 @@ class Runner:
                 # 分批爬取，减少浏览器压力
                 s = batch
                 for i in range(0, len(pubs), s):
-                    tasks = [self.fill_pub(pub) for pub in pubs[i:i + s]]
+                    tasks = [self.fill_pub(pub, item) for pub in pubs[i:i + s]]
                     logger.info(f'准备异步爬取 {len(tasks)}')
                     await asyncio.gather(*tasks)  # 异常不抛出
 
-    async def fill_pub(self, pub):
+    async def fill_pub(self, pub, item: Item):
+        min_cite = item.min_cite
+        # 过滤引用数量
+        if min_cite is not None and min_cite > 0:
+            num_citations = pub.get('num_citations')
+            if num_citations is None:
+                pub['error'] = f'无引用数量信息'
+                self.record.fail_to_fill(pub)
+                return
+            elif num_citations < min_cite:
+                pub['error'] = f'引用数量不足 {pub["num_citations"]} < {min_cite}'
+                self.record.fail_to_fill(pub)
+                return
+
         # 先获取bib_link
         try:
             await self.fill_detail(pub)

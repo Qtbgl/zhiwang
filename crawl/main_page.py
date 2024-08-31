@@ -10,10 +10,6 @@ from logger import logger
 from crawl.parse_zhiwang import parse_result_page
 
 
-class QuitError(Exception):
-    pass
-
-
 class ScrapeMain:
     def __init__(self, page: nodriver.Tab):
         self.batch_for_detail = 5
@@ -68,6 +64,8 @@ class ScrapeMain:
             li_sort = await page.select('#PT')
         elif sort_by == 'cite':
             li_sort = await page.select('#CF')
+        elif sort_by == 'download':
+            li_sort = await page.select('#DFR')
         else:
             li_sort = None
 
@@ -87,7 +85,7 @@ class ScrapeMain:
             await page.wait(2)  # debug 等待更新
             await page.wait_for(selector='#ModuleSearchResult tbody > tr')
         except asyncio.TimeoutError:
-            raise QuitError('打开下一结果页失败')
+            raise Exception('打开下一结果页失败')
 
         return True
 
@@ -118,7 +116,8 @@ class ScrapeMain:
                     break
                 if not await self.next_page():
                     break
-
-        except QuitError as e:
-            logger.error(f'发生异常，爬取中断 {e}')
+        except asyncio.CancelledError:
             raise
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            raise Exception(f'发生异常，爬取中断 {e}')

@@ -31,6 +31,7 @@ class Record:
                 'pub_url': pub['url'],
                 'title': pub['title'],
                 'author': pub['author'],
+                'date': pub['date'],
                 'num_citations': pub.get('num_citations', None),
                 'bib_link': pub.get('bib_link'),
                 'bib': pub.get('bib'),

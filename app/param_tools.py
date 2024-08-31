@@ -28,8 +28,12 @@ class Params:
         if val is None:
             return None
 
-        assert val in ('relevant', 'date', 'cite')
+        assert val in ('relevant', 'date', 'cite', 'download')
         return val
+
+    @property
+    def min_cite(self):
+        return get_int(self.obj, 'min_cite', a=0)
 
 
 def get_int(obj, key, default=None, a=None, b=None):
