@@ -25,6 +25,8 @@ class Runner:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                path = await scrape_main.page.save_screenshot()
+                logger.debug(f'失败网页已保存 {path}')
                 raise Exception(f'搜索知网结果页失败 {e}')
 
             async for pubs in scrape_main.search_pub(item):

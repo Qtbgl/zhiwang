@@ -43,12 +43,14 @@ async def create():
         await browser.start()
     except Exception as e1:
         logger.error(traceback.format_exc())
+        throw = StartBrowserError('浏览器启动失败')
         try:
             stop(browser)
-            raise StartBrowserError('浏览器启动失败')
         except Exception as e2:
             logger.error(traceback.format_exc())
-            raise StartBrowserError('浏览器启动失败，且关闭进程时出错')
+            throw = StartBrowserError('浏览器启动失败，且关闭进程时出错')
+
+        raise throw
 
     return BrowserAuto(browser)
 
