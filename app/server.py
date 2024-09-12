@@ -45,7 +45,7 @@ class HeartBeatTask:
             try:
                 await task
             except Exception as e:
-                logger.error(f'task error retrieved: {e}')
+                logger.error(f'task error retrieved: {traceback.format_exc()}')
                 data['error'] = str(e)
 
             await self.on_finish(data)
