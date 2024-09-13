@@ -10,33 +10,6 @@ def check_key(obj: dict):
     return api_key
 
 
-class Params:
-    def __init__(self, obj: dict):
-        self.obj = obj
-
-    @property
-    def pages(self):
-        return get_int(self.obj, 'pages', a=1, default=1)
-
-    @property
-    def year(self):
-        return get_int(self.obj, 'year_low', a=1900, b=2024)
-
-    @property
-    def sort_by(self):
-        obj = self.obj
-        val = obj.get('sort_by')
-        if val is None:
-            return None
-
-        assert val in ('relevant', 'date', 'cite', 'download')
-        return val
-
-    @property
-    def min_cite(self):
-        return get_int(self.obj, 'min_cite', a=0)
-
-
 def get_int(obj, key, default=None, a=None, b=None):
     val = obj.get(key)
     if val is None:
@@ -48,3 +21,16 @@ def get_int(obj, key, default=None, a=None, b=None):
     if b is not None:
         assert b >= val, 'Value must be less than or equal to {}'.format(b)
     return val
+
+
+class ParamError(Exception):
+    pass
+
+
+def param_check(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            raise ParamError(e)
+    return wrapper

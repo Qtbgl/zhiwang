@@ -3,8 +3,7 @@ import traceback
 
 import nodriver
 
-from app.Record import Record
-from crawl.Item import Item
+from crawl.SearchItem import SearchItem
 from crawl.nodriver_tools import BrowserAuto
 from logger import logger
 from crawl.parse_zhiwang import parse_result_page
@@ -16,7 +15,7 @@ class ScrapeMain:
         self.page = page
 
     @classmethod
-    async def create(cls, tool: BrowserAuto, item: Item):
+    async def create(cls, tool: BrowserAuto, item: SearchItem):
         name = item.name
 
         page = await tool.browser.get('https://www.cnki.net/', new_tab=True)
@@ -41,7 +40,7 @@ class ScrapeMain:
         assert succeed, '知网结果页打开失败'
         return cls(page)
 
-    async def filter_result(self, item: Item):
+    async def filter_result(self, item: SearchItem):
         year = item.year
         sort_by = item.sort_by
         page = self.page
@@ -89,7 +88,7 @@ class ScrapeMain:
 
         return True
 
-    async def search_pub(self, item: Item):
+    async def search_pub(self, item: SearchItem):
         page = self.page
 
         try:

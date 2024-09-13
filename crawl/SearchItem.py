@@ -1,11 +1,4 @@
-from app.param_tools import Params
-
-
-def create_item(name: str, p: Params):
-    return Item(name, p.pages, p.sort_by, p.year, p.min_cite)
-
-
-class Item:
+class SearchItem:
     def __init__(self, name, pages=None, sort_by=None, year=None, min_cite=None):
         """
         :param pages: 爬取多少页的文献

@@ -1,7 +1,7 @@
 import asyncio
 
-from app.Record import Record
-from crawl.Item import Item
+from service.Record import Record
+from crawl.SearchItem import SearchItem
 from crawl.main_page import ScrapeMain
 from crawl.nodriver_tools import BrowserAuto
 from crawl.sub_page import ScrapeSub, ScrapeBib
@@ -16,7 +16,7 @@ class Runner:
         self.browser_tool = browser_tool
         self.record = record
 
-    async def run(self, item: Item):
+    async def run(self, item: SearchItem):
         logger.info(f'任务请求 {item}')
         async with self.browser_tool:
             try:
@@ -37,7 +37,7 @@ class Runner:
                     logger.info(f'准备异步爬取 {len(tasks)}')
                     await asyncio.gather(*tasks)  # 异常不抛出
 
-    async def fill_pub(self, pub, item: Item):
+    async def fill_pub(self, pub, item: SearchItem):
         min_cite = item.min_cite
         # 过滤引用数量
         if min_cite is not None and min_cite > 0:
