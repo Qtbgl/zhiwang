@@ -1,3 +1,6 @@
+import bibtexparser
+
+
 class Record:
     def __init__(self):
         self.pages = None
@@ -26,6 +29,14 @@ class Record:
         results = []
         for pub in all_pubs:
             abstract = pub.get('abstract')
+            bib_str = pub.get('bib')
+            # 组合摘要到bib中
+            if bib_str and abstract:
+                bib_db = bibtexparser.loads(bib_str)
+                entry = bib_db.entries[0]
+                entry['abstract'] = pub['abstract']
+                bib_str = bibtexparser.dumps(bib_db)
+
             results.append({
                 'abstract': abstract,
                 'pub_url': pub['url'],
@@ -33,8 +44,9 @@ class Record:
                 'author': pub['author'],
                 'date': pub['date'],
                 'num_citations': pub.get('num_citations', None),
+                # 'pdf_link': pub.get('pdf_link'),  # 必须从页面中跳转进入
                 'bib_link': pub.get('bib_link'),
-                'bib': pub.get('bib'),
+                'bib': bib_str,
                 'error': pub.get('error'),
             })
 

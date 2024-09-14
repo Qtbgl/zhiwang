@@ -1,11 +1,11 @@
 import asyncio
+import traceback
 
 from service.Record import Record
 from crawl.SearchItem import SearchItem
 from crawl.main_page import ScrapeMain
 from crawl.nodriver_tools import BrowserAuto
 from crawl.sub_page import ScrapeSub, ScrapeBib
-from crawl.wait_tools import wait_to_load
 from logger import logger
 from data import api_config
 
@@ -22,11 +22,10 @@ class Runner:
             try:
                 self.record.set_pages(item.pages)
                 scrape_main = await ScrapeMain.create(self.browser_tool, item)
+                logger.info(f'成功打开知网结果页 {scrape_main.page}')
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                path = await self.browser_tool.browser.main_tab.save_screenshot()
-                logger.debug(f'失败网页已保存 {path}')
                 raise Exception(f'搜索知网结果页失败 {e}')
 
             async for pubs in scrape_main.search_pub(item):
@@ -70,7 +69,8 @@ class Runner:
             raise
         except Exception as e:
             # 吸收异常
-            logger.error(f'爬取bib失败 {pub["bib_link"]} {e}')
+            logger.error(f'爬取bib失败 {pub["bib_link"]}')
+            logger.debug(traceback.format_exc())
             pub['error'] = str(e)
             self.record.fail_to_fill(pub)
             return
@@ -81,7 +81,6 @@ class Runner:
         page_url = pub['url']
         tool = self.browser_tool
         page = await tool.browser.get(page_url, new_tab=True)
-        await wait_to_load(page, 2)
         try:
             sub = ScrapeSub(page)
             await sub.fill_detail(pub)
@@ -92,7 +91,6 @@ class Runner:
         bib_link = pub['bib_link']
         tool = self.browser_tool
         page = await tool.browser.get(bib_link, new_tab=True)
-        await wait_to_load(page, 2)
         try:
             sub = ScrapeBib(page)
             await sub.fill_bib(pub, max_tries=3)

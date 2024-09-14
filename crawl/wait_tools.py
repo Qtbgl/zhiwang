@@ -12,3 +12,17 @@ async def wait_to_load(page: nodriver.Tab, init_wait=None, wait_gap=0.5, timeout
             await page.wait(wait_gap)
 
     await asyncio.wait_for(to_load(), timeout)
+
+
+async def wait_to_complete(page: nodriver.Tab, timeout):
+    loop = asyncio.get_running_loop()
+    now = loop.time()
+    while True:
+        s = await page.evaluate("document.readyState")
+        if s == 'complete':
+            return True
+
+        if loop.time() - now > timeout:  # 不抛异常
+            return False
+
+        await page.wait(0.5)

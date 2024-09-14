@@ -4,6 +4,7 @@ import traceback
 import nodriver
 
 from crawl.SearchItem import SearchItem
+from crawl.error_tools import ScreenshotAuto
 from crawl.nodriver_tools import BrowserAuto
 from logger import logger
 from crawl.parse_zhiwang import parse_result_page
@@ -19,15 +20,20 @@ class ScrapeMain:
         name = item.name
 
         page = await tool.browser.get('https://www.cnki.net/', new_tab=True)
-        entry = await page.find('中文文献、外文文献')  # 等待直到找到
+        page_screenshot = ScreenshotAuto(page, dont_raise_timeout=False)
 
-        await entry.send_keys(name)
-        btn = await page.select('body > div.wrapper > div.searchmain > div.search-form > div.input-box > input.search-btn')
+        async with page_screenshot:
+            entry = await page.find('中文文献、外文文献', timeout=30)  # 等待直到找到
 
-        await btn.click()
+            await entry.send_keys(name)
+            btn = await page.select('body > div.wrapper > div.searchmain > div.search-form > div.input-box > input.search-btn')
+
+            await btn.click()
+
         # 进入搜索结果页
         succeed = False
-        for i in range(5):
+        max_tries = 5
+        for i in range(max_tries):
             try:
                 await page.wait(2)
                 await page.wait_for(selector='#ModuleSearchResult tbody > tr')
@@ -37,7 +43,11 @@ class ScrapeMain:
                 logger.error(f'知网结果页打开失败，尝试次数{i+1}')
                 await page.reload(ignore_cache=False)
 
-        assert succeed, '知网结果页打开失败'
+        if not succeed:
+            path = await page.save_screenshot()
+            logger.error(f'知网结果页打开失败，已尝试{max_tries}，截图已保存 {path}')
+            raise Exception('知网结果页打开失败')
+
         return cls(page)
 
     async def filter_result(self, item: SearchItem):

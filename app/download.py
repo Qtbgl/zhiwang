@@ -51,7 +51,7 @@ class DownloadTask:
         await runner.login_zhiwang()
 
         # 提示客户端开始接收
-        await websocket.send_json({'type': 'Starting'})
+        await websocket.send_json({'type': 'StartDownload'})
 
         # 不断下载
         while True:
@@ -100,12 +100,12 @@ class DownloadTask:
 
 @param_check
 def is_to_end(obj):
-    return obj['doing'] == 'end'
+    return obj['doing'] == 'End'
 
 
 @param_check
 def is_to_download(obj):
-    return obj['doing'] == 'download'
+    return obj['doing'] == 'Download'
 
 
 @param_check

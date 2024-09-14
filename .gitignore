@@ -3,3 +3,7 @@
 .idea/
 data/
 test/
+
+**/*.png
+**/*.jpg
+**/*.pdf
