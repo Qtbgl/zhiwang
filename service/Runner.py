@@ -85,9 +85,12 @@ class Runner:
             sub = ScrapeSub(page)
             await sub.fill_detail(pub)
 
-            # pdf...
+            # pdf后台下载
+            logger.debug(f'pdf后台下载 0 {pub["title"]}')
             btn = await page.find('#pdfDown', timeout=2)
             await btn.click()
+            self.record.pdf_cnt += 1
+            logger.debug(f'pdf后台下载 1 {pub["title"]}')
 
         finally:
             await page.close()

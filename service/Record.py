@@ -7,6 +7,7 @@ class Record:
         self.pages = None
         self.fail_pubs = []
         self.filled_pubs = []
+        self.pdf_cnt = 0  # 等待下载数量
 
     def set_pages(self, pages):
         self.pages = pages

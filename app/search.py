@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from app.heartbeat import HeartBeatTask, goodbye
 from app.param_tools import get_int
@@ -49,7 +50,20 @@ class SearchTask(HeartBeatTask):
     async def func(self):
         pdf_task = asyncio.create_task(self.send_pdf())
         main_task = asyncio.create_task(self.runner.run(self.item))
-        ...
+        # 等待 main_task 完成
+        await main_task
+
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        while self.record.pdf_cnt > 0:
+            logger.info(f"等待PDF task中 剩余数量为{self.record.pdf_cnt}")
+            if loop.time() - now > 30:
+                # 如果超时
+                logger.error("PDF task timed out. Cancelling...")
+                pdf_task.cancel()
+                break
+
+            await asyncio.sleep(1)
 
     async def on_heartbeat(self, data):
         data['progress'] = self.record.get_progress()
@@ -61,13 +75,11 @@ class SearchTask(HeartBeatTask):
     async def send_pdf(self):
         websocket = self.websocket
         browser_auto = self.browser_auto
-        record = self.record
-        download_complete = False
-        while not download_complete:
+        while True:
             path = Path(browser_auto.temp_dir.name)
             pdf_files = list(path.glob('*.pdf'))
             if len(pdf_files) == 0:
-                await asyncio.sleep(1)
+                await asyncio.sleep(1)  # 等待
             else:
                 # 发送pdf数据
                 pdf_file = pdf_files[0]
@@ -79,8 +91,10 @@ class SearchTask(HeartBeatTask):
                 # 发送pdf
                 await websocket.send_json({'type': 'PdfData', 'file_name': {pdf_file.name}})
                 await websocket.send_bytes(pdf_data)
-
-            download_complete = ...
+                # 删除本地的
+                pdf_path.unlink()
+                self.record.pdf_cnt -= 1
+                logger.debug(f'剩余pdf_cnt: {self.record.pdf_cnt}')
 
 
 class Param:
