@@ -1,5 +1,4 @@
 import asyncio
-import os
 import traceback
 
 from app.heartbeat import HeartBeatTask, goodbye
@@ -61,27 +60,12 @@ class SearchTask(HeartBeatTask):
                 await pdf_task
                 # await抛出任务取消异常
 
-            # 限时等待 pdf_task
-
-            async def wait_pdf():
-                last_cnt = self.record.pdf_cnt
-                while self.record.pdf_cnt == last_cnt:
-                    await asyncio.sleep(1)
-
-            async def wait_all_remain():
-                while self.record.pdf_cnt > 0:
-                    logger.debug(f"等待PDF task中 剩余数量为{self.record.pdf_cnt}")
-                    await asyncio.wait_for(wait_pdf(), timeout=30)
-
+            # 同时结束 pdf_task
+            pdf_task.cancel()
             try:
-                await asyncio.wait_for(wait_all_remain(), timeout=150)
-            except asyncio.TimeoutError:
-                logger.error("PDF task timed out. Cancelling...")
-                pdf_task.cancel()
-                try:
-                    await pdf_task
-                except asyncio.CancelledError:
-                    pass
+                await pdf_task
+            except asyncio.CancelledError:
+                pass
                 # 取消任务，不再抛出
 
     async def on_heartbeat(self, data):

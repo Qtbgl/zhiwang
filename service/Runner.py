@@ -1,5 +1,9 @@
 import asyncio
+import os
 import traceback
+import re
+
+import nodriver
 
 from service.Record import Record
 from crawl.SearchItem import SearchItem
@@ -51,9 +55,21 @@ class Runner:
                 await self.record.fail_to_fill(pub)
                 return
 
-        # 先获取bib_link
+        page_url = pub['url']
+        tool = self.browser_tool
+        pub_page = await tool.browser.get(page_url, new_tab=True)
         try:
-            await self.fill_detail(pub)
+            await self._fill_pub(pub_page, pub)
+        finally:
+            if pub_page in tool.browser.tabs:
+                await pub_page.close()
+            else:
+                logger.debug(f'非人为关闭 {pub_page}')
+
+    async def _fill_pub(self, pub_page: nodriver.Tab, pub):
+        # 先进入文献页面
+        try:
+            await ScrapeSub(pub_page).fill_detail(pub)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -63,36 +79,56 @@ class Runner:
             await self.record.fail_to_fill(pub)
             return
 
-        # 接着获取bib
+        pdf_task = asyncio.create_task(self.download_pdf(pub_page, pub))
+        bib_task = asyncio.create_task(self.fill_bib(pub))
+
+        # 等待bib任务（依靠bib_link，获取bib）
         try:
-            await self.fill_bib(pub)
+            await bib_task
         except asyncio.CancelledError:
+            pdf_task.cancel()
+            await pdf_task
             raise
         except Exception as e:
-            # 吸收异常
             logger.error(f'爬取bib失败 {pub["bib_link"]} {traceback.format_exc()}')
             pub['error'] = str(e)
             await self.record.fail_to_fill(pub)
-            return
+            return   # 吸收异常
+
+        try:
+            await asyncio.wait_for(pdf_task, timeout=30)
+        except asyncio.TimeoutError as e:
+            logger.error(f'等待pdf失败 {pub["title"]} {pub["url"]}')
+            # 吸收异常
 
         await self.record.success_fill(pub)
 
-    async def fill_detail(self, pub):
-        page_url = pub['url']
-        tool = self.browser_tool
-        page = await tool.browser.get(page_url, new_tab=True)
+    async def download_pdf(self, pub_page: nodriver.Tab, pub):
         try:
-            sub = ScrapeSub(page)
-            await sub.fill_detail(pub)
-
             # pdf后台下载
-            btn = await page.find('#pdfDown', timeout=2)
+            btn = await pub_page.find('PDF下载', timeout=2)
             await btn.click()
             self.record.pdf_cnt += 1
-            logger.debug(f'待处理pdf_cnt: {self.record.pdf_cnt}')
+            logger.debug(f'加入pdf_cnt: {self.record.pdf_cnt}')
+        except asyncio.TimeoutError as e:
+            logger.error(f'下载PDF异常 {e}')
+            return  # 吸收异常
 
-        finally:
-            await page.close()
+        full_info = pub['title'] + ' ' + pub['author']
+
+        def belong_to_pub(file_name):
+            part_info = re.findall(r'[\u4e00-\u9fa5]+', file_name)
+            for part in part_info:
+                if part not in full_info:
+                    return False
+            return True
+
+        # 等待pdf下载完成
+        while True:
+            await asyncio.sleep(2)
+            for file in os.listdir(self.browser_tool.temp_dir.name):
+                if file.endswith(".pdf") and belong_to_pub(file):
+                    break
 
     async def fill_bib(self, pub):
         bib_link = pub['bib_link']

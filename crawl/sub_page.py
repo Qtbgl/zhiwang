@@ -76,12 +76,13 @@ class ScrapeBib:
     async def fill_bib(self, pub, max_tries):
         page = self.page
         err_sample = None
-
+        page_screenshot = ScreenshotAuto(page, dont_raise_timeout=False)
         # 等待页面加载
-        await page.wait_for(text='文献导出格式', timeout=30)
-        loaded = await wait_to_complete(page, timeout=30)
-        if not loaded:
-            logger.warning(f'bib页面未加载完成')
+        async with page_screenshot:
+            await page.wait_for(text='文献导出格式', timeout=30)
+            loaded = await wait_to_complete(page, timeout=30)
+            if not loaded:
+                logger.warning(f'bib页面未加载完成')
 
         for i in range(max_tries):
             try:
