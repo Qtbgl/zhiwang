@@ -43,11 +43,11 @@ class Runner:
             num_citations = pub.get('num_citations')
             if num_citations is None:
                 pub['error'] = f'无引用数量信息'
-                self.record.fail_to_fill(pub)
+                await self.record.fail_to_fill(pub)
                 return
             elif num_citations < min_cite:
                 pub['error'] = f'引用数量不足 {pub["num_citations"]} < {min_cite}'
-                self.record.fail_to_fill(pub)
+                await self.record.fail_to_fill(pub)
                 return
 
         # 先获取bib_link
@@ -59,7 +59,7 @@ class Runner:
             # 吸收异常
             logger.error(f'爬取子网页失败 {pub["url"]} {e}')
             pub['error'] = str(e)
-            self.record.fail_to_fill(pub)
+            await self.record.fail_to_fill(pub)
             return
 
         # 接着获取bib
@@ -72,10 +72,10 @@ class Runner:
             logger.error(f'爬取bib失败 {pub["bib_link"]}')
             logger.debug(traceback.format_exc())
             pub['error'] = str(e)
-            self.record.fail_to_fill(pub)
+            await self.record.fail_to_fill(pub)
             return
 
-        self.record.success_fill(pub)
+        await self.record.success_fill(pub)
 
     async def fill_detail(self, pub):
         page_url = pub['url']
@@ -84,6 +84,11 @@ class Runner:
         try:
             sub = ScrapeSub(page)
             await sub.fill_detail(pub)
+
+            # pdf...
+            btn = await page.find('#pdfDown', timeout=2)
+            await btn.click()
+
         finally:
             await page.close()
 

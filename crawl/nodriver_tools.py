@@ -1,4 +1,5 @@
 import os
+import tempfile
 import traceback
 
 import asyncio
@@ -12,9 +13,11 @@ class BrowserAuto:
     def __init__(self, browser: Browser):
         self.browser = browser
         assert browser and not browser.stopped, 'Crawl的浏览器不可用'
+        self.temp_dir = tempfile.TemporaryDirectory()
 
     async def __aenter__(self):  # 不在此处开启浏览器
-        logger.info('成功打开浏览器')
+        logger.info(f'成功打开浏览器，设置临时下载目录 {self.temp_dir.name}')
+        await self.browser.main_tab.set_download_path(self.temp_dir.name)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -22,6 +25,7 @@ class BrowserAuto:
         logger.info('准备关闭浏览器')
         try:
             self.browser.stop()  # 标准关闭
+            self.temp_dir.cleanup()  # 调用退出函数
         except Exception as e:
             logger.info(traceback.format_exc())
             raise e  # 再次抛出，不影响原异常
