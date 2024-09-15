@@ -62,35 +62,39 @@ class ScrapeBib:
     def __init__(self, page: nodriver.Tab):
         self.page = page
 
-    async def _get_bib(self):
+    async def _click_and_get(self):
         page = self.page
-        await page.wait_for(text='文献导出格式')
-        await wait_to_complete(page, timeout=10)
         # 点中bib格式
         a_bib = await page.select('div.export-sidebar-a > ul > li > a[displaymode="BibTex"]')
         await a_bib.click()
         await page.wait(2)
         # 等待后再尝试
-        tag_bib = await page.select('#result > ul > li', timeout=10)
+        tag_bib = await page.select('#result > ul > li', timeout=30)
         bib_str = tag_bib.text_all.strip()
         return bib_str
 
     async def fill_bib(self, pub, max_tries):
         page = self.page
-        bib_str = await self._get_bib()
         err_sample = None
+
+        # 等待页面加载
+        await page.wait_for(text='文献导出格式', timeout=30)
+        loaded = await wait_to_complete(page, timeout=30)
+        if not loaded:
+            logger.warning(f'bib页面未加载完成')
+
         for i in range(max_tries):
-            # 检查格式
             try:
+                # 尝试爬取
+                bib_str = await self._click_and_get()
+                # 检查格式
                 bib_db = bibtexparser.loads(bib_str)
-                assert len(bib_db.entries) > 0
-                entry = bib_db.entries[0]
-                # entry['abstract'] = pub['abstract']  # debug 到最后加入
+                assert len(bib_db.entries) > 0, f'格式异常{bib_str[:20]}...'
                 pub['bib'] = bibtexparser.dumps(bib_db)
                 return
             except Exception as e:
                 logger.error(f'bibtexparser解析失败，尝试{i + 1} {type(e)} {e}')
                 err_sample = e
-                bib_str = await self._get_bib()
+                await page.reload()  # 并刷新网页
 
         raise Exception(f'bibtexparser解析失败，已尝试{max_tries} {err_sample}')

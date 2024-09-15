@@ -28,6 +28,9 @@ class HeartBeatTask:
 
     @abc.abstractmethod
     async def func(self):
+        """
+        抽象任务，与心跳异步运行
+        """
         pass
 
     async def finish(self):
@@ -46,7 +49,7 @@ class HeartBeatTask:
             try:
                 await task
             except Exception as e:
-                logger.error(f'task error retrieved: {traceback.format_exc()}')
+                logger.error(f'heartbeat吸收异常: {traceback.format_exc()}')
                 data['error'] = str(e)
 
             await self.on_finish(data)

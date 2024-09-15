@@ -6,6 +6,7 @@ import nodriver
 from crawl.SearchItem import SearchItem
 from crawl.error_tools import ScreenshotAuto
 from crawl.nodriver_tools import BrowserAuto
+from crawl.wait_tools import wait_to_complete
 from logger import logger
 from crawl.parse_zhiwang import parse_result_page
 
@@ -24,9 +25,12 @@ class ScrapeMain:
 
         async with page_screenshot:
             entry = await page.find('中文文献、外文文献', timeout=30)  # 等待直到找到
+            await wait_to_complete(page, timeout=30)  # 等待网页加载
 
             await entry.send_keys(name)
-            btn = await page.select('body > div.wrapper > div.searchmain > div.search-form > div.input-box > input.search-btn')
+            btn = await page.select(
+                'body > div.wrapper > div.searchmain > div.search-form > div.input-box > input.search-btn',
+                timeout=2)
 
             await btn.click()
 

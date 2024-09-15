@@ -18,23 +18,24 @@ class Runner:
 
     async def run(self, item: SearchItem):
         logger.info(f'任务请求 {item}')
-        async with self.browser_tool:
-            try:
-                self.record.set_pages(item.pages)
-                scrape_main = await ScrapeMain.create(self.browser_tool, item)
-                logger.info(f'成功打开知网结果页 {scrape_main.page}')
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                raise Exception(f'搜索知网结果页失败 {e}')
+        # async with self.browser_tool:  # debug 放到更外面
+        try:
+            self.record.set_pages(item.pages)
+            scrape_main = await ScrapeMain.create(self.browser_tool, item)
+            logger.info(f'成功打开知网结果页 {scrape_main.page}')
+        except asyncio.CancelledError:
+            logger.debug(f'Runner遇到任务取消 {traceback.format_exc()}')
+            raise
+        except Exception as e:
+            raise Exception(f'搜索知网结果页失败 {e}')
 
-            async for pubs in scrape_main.search_pub(item):
-                # 分批爬取，减少浏览器压力
-                s = self.batch
-                for i in range(0, len(pubs), s):
-                    tasks = [self.fill_pub(pub, item) for pub in pubs[i:i + s]]
-                    logger.info(f'准备异步爬取 {len(tasks)}')
-                    await asyncio.gather(*tasks)  # 异常不抛出
+        async for pubs in scrape_main.search_pub(item):
+            # 分批爬取，减少浏览器压力
+            s = self.batch
+            for i in range(0, len(pubs), s):
+                tasks = [self.fill_pub(pub, item) for pub in pubs[i:i + s]]
+                logger.info(f'准备异步爬取 {len(tasks)}')
+                await asyncio.gather(*tasks)  # 异常不抛出
 
     async def fill_pub(self, pub, item: SearchItem):
         min_cite = item.min_cite
@@ -69,8 +70,7 @@ class Runner:
             raise
         except Exception as e:
             # 吸收异常
-            logger.error(f'爬取bib失败 {pub["bib_link"]}')
-            logger.debug(traceback.format_exc())
+            logger.error(f'爬取bib失败 {pub["bib_link"]} {traceback.format_exc()}')
             pub['error'] = str(e)
             await self.record.fail_to_fill(pub)
             return
@@ -86,11 +86,10 @@ class Runner:
             await sub.fill_detail(pub)
 
             # pdf后台下载
-            logger.debug(f'pdf后台下载 0 {pub["title"]}')
             btn = await page.find('#pdfDown', timeout=2)
             await btn.click()
             self.record.pdf_cnt += 1
-            logger.debug(f'pdf后台下载 1 {pub["title"]}')
+            logger.debug(f'待处理pdf_cnt: {self.record.pdf_cnt}')
 
         finally:
             await page.close()
