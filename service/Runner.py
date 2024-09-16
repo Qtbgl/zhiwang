@@ -1,7 +1,5 @@
 import asyncio
-import os
 import traceback
-import re
 
 import nodriver
 
@@ -108,27 +106,18 @@ class Runner:
             # pdf后台下载
             btn = await pub_page.find('PDF下载', timeout=2)
             await btn.click()
-            self.record.pdf_cnt += 1
-            logger.debug(f'加入pdf_cnt: {self.record.pdf_cnt}')
         except asyncio.TimeoutError as e:
             logger.error(f'下载PDF异常 {e}')
             return  # 吸收异常
 
-        full_info = pub['title'] + ' ' + pub['author']
-
-        def belong_to_pub(file_name):
-            part_info = re.findall(r'[\u4e00-\u9fa5]+', file_name)
-            for part in part_info:
-                if part not in full_info:
-                    return False
-            return True
+        self.record.new_to_match(pub)
+        logger.debug(f'加入pdf_cnt: {self.record.unmatched_pdf_cnt}')
 
         # 等待pdf下载完成
         while True:
-            await asyncio.sleep(2)
-            for file in os.listdir(self.browser_tool.temp_dir.name):
-                if file.endswith(".pdf") and belong_to_pub(file):
-                    break
+            await asyncio.sleep(1)
+            if self.record.is_matched(pub['url']):
+                break
 
     async def fill_bib(self, pub):
         bib_link = pub['bib_link']

@@ -79,7 +79,7 @@ class SearchTask(HeartBeatTask):
         browser_auto = self.browser_auto
         try:
             while True:
-                if self.record.pdf_cnt == 0:
+                if self.record.unmatched_pdf_cnt == 0:
                     # pdf生产者还没有
                     await asyncio.sleep(1)  # 等待
                     continue
@@ -87,7 +87,6 @@ class SearchTask(HeartBeatTask):
                 path = Path(browser_auto.temp_dir.name)
                 pdf_files = list(path.glob('*.pdf'))
                 if len(pdf_files) == 0:
-                    # logger.debug(f'下载目录中无pdf文件，待处理pdf_cnt: {self.record.pdf_cnt}')
                     await asyncio.sleep(1)  # 等待
                 else:
                     # 发送pdf数据
@@ -95,8 +94,8 @@ class SearchTask(HeartBeatTask):
                     await self._send_pdf(pdf_file)
                     # 删除本地的
                     pdf_file.unlink()
-                    self.record.pdf_cnt -= 1
-                    logger.debug(f'剩余pdf_cnt: {self.record.pdf_cnt}')
+                    self.record.match_pdf(pdf_file)
+                    logger.debug(f'剩余pdf_cnt: {self.record.unmatched_pdf_cnt}')
 
         except asyncio.CancelledError as e:
             logger.debug(f"send_pdf遇到任务取消 {traceback.format_exc()}")

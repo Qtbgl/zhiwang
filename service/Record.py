@@ -1,5 +1,9 @@
+import pathlib
+
 import bibtexparser
 import asyncio
+
+from service.pdf_tools import match_pdf_to_pub, get_pub_info
 
 
 class Record:
@@ -7,7 +11,25 @@ class Record:
         self.pages = None
         self.fail_pubs = []
         self.filled_pubs = []
-        self.pdf_cnt = 0  # 等待下载数量
+        self.pub_infos = []  # 等待下载pdf对应的文献信息
+
+    def new_to_match(self, pub):
+        self.pub_infos.append(get_pub_info(pub))
+
+    @property
+    def unmatched_pdf_cnt(self):
+        return len(self.pub_infos)
+
+    def match_pdf(self, pdf_file: pathlib.Path):
+        for pub_info in self.pub_infos:
+            if not pub_info['is_matched'] and match_pdf_to_pub(pdf_file.name, pub_info):
+                pub_info['is_matched'] = True
+                return
+
+    def is_matched(self, pub_url):
+        for pub_info in self.pub_infos:
+            if pub_info['pub_url'] == pub_url:
+                return pub_info['is_matched']
 
     def set_pages(self, pages):
         self.pages = pages
