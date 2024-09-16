@@ -111,7 +111,7 @@ class Runner:
             return  # 吸收异常
 
         self.record.new_to_match(pub)
-        logger.debug(f'加入pdf_cnt: {self.record.unmatched_pdf_cnt}')
+        logger.debug(f'加入 pdf_cnt: {self.record.all_pdf_cnt}   unmatched: {self.record.unmatched_pdf_cnt}')
 
         # 等待pdf下载完成
         while True:

@@ -18,6 +18,10 @@ class Record:
 
     @property
     def unmatched_pdf_cnt(self):
+        return sum(1 for pub_info in self.pub_infos if not pub_info['is_matched'])
+
+    @property
+    def all_pdf_cnt(self):
         return len(self.pub_infos)
 
     def match_pdf(self, pdf_file: pathlib.Path):

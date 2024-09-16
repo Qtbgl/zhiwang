@@ -1,5 +1,8 @@
 import asyncio
+import base64
 import traceback
+
+from starlette.websockets import WebSocketDisconnect
 
 from app.heartbeat import HeartBeatTask, goodbye
 from app.param_tools import get_int
@@ -50,23 +53,15 @@ class SearchTask(HeartBeatTask):
     async def func(self):
         async with self.browser_auto:
             main_task = asyncio.create_task(self.runner.run(self.item))
-            pdf_task = asyncio.create_task(self.send_pdf())
+            pdf_task = asyncio.create_task(self._gather_pdf(main_task))
             # 等待 main_task 完成
             try:
                 await main_task
             except asyncio.CancelledError:
-                # 一块取消两个任务
+                logger.debug(f'main_task被取消，一块取消pdf_task')
                 pdf_task.cancel()
+            finally:
                 await pdf_task
-                # await抛出任务取消异常
-
-            # 同时结束 pdf_task
-            pdf_task.cancel()
-            try:
-                await pdf_task
-            except asyncio.CancelledError:
-                pass
-                # 取消任务，不再抛出
 
     async def on_heartbeat(self, data):
         data['progress'] = self.record.get_progress()
@@ -75,45 +70,64 @@ class SearchTask(HeartBeatTask):
         # 任务执行结果
         data['data'] = self.record.deliver_pubs()
 
-    async def send_pdf(self):
-        browser_auto = self.browser_auto
-        try:
-            while True:
-                if self.record.unmatched_pdf_cnt == 0:
-                    # pdf生产者还没有
-                    await asyncio.sleep(1)  # 等待
-                    continue
+    async def _gather_pdf(self, main_task: asyncio.Task):
+        while not main_task.done():
+            if self.record.unmatched_pdf_cnt == 0:
+                # pdf生产者还没有
+                await asyncio.sleep(1)  # 等待
+                continue
 
-                path = Path(browser_auto.temp_dir.name)
-                pdf_files = list(path.glob('*.pdf'))
-                if len(pdf_files) == 0:
-                    await asyncio.sleep(1)  # 等待
-                else:
-                    # 发送pdf数据
-                    pdf_file = pdf_files[0]
-                    await self._send_pdf(pdf_file)
-                    # 删除本地的
-                    pdf_file.unlink()
-                    self.record.match_pdf(pdf_file)
-                    logger.debug(f'剩余pdf_cnt: {self.record.unmatched_pdf_cnt}')
+            # 采集pdf
+            path = Path(self.browser_auto.temp_dir.name)
+            pdf_files = list(path.glob('*.pdf'))
+            if len(pdf_files) == 0:
+                await asyncio.sleep(1)
+                continue
 
-        except asyncio.CancelledError as e:
-            logger.debug(f"send_pdf遇到任务取消 {traceback.format_exc()}")
-            raise e
+            # 发送pdf数据
+            pdf_file = pdf_files[0]
+            async with self.send_lock:
+                await self._send_pdf(pdf_file)
+            # 删除本地的
+            pdf_file.unlink()
+            self.record.match_pdf(pdf_file)
+            logger.debug(f'剩余 pdf_cnt: {self.record.all_pdf_cnt} unmatched: {self.record.unmatched_pdf_cnt}')
 
     async def _send_pdf(self, pdf_file: Path):
         websocket = self.websocket
         try:
             pdf_path = pdf_file.resolve()
-            with open(pdf_path, 'rb') as file:
-                pdf_data = file.read()
+            chunk_size = 1024
+            logger.info(f'准备发送 PDF 文件 {pdf_path}')
+            with open(pdf_path, 'rb') as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        # 如果没有更多数据，发送结束信号
+                        await websocket.send_json({
+                            'type': 'PdfData',
+                            'file_name': pdf_file.name,
+                            'pdf_data': None,
+                        })
+                        break
 
-            logger.info(f'准备发送pdf 大小{len(pdf_data)} {pdf_file.name}')
-            # 发送pdf
-            await websocket.send_json({'type': 'PdfData', 'file_name': pdf_file.name})
-            await websocket.send_json({'just test': 'PdfData'})
-            # await websocket.send_bytes(pdf_data)
+                    # 将二进制嵌入json
+                    pdf_data = base64.b64encode(chunk).decode('utf-8')
+
+                    # 发送 PDF 数据块
+                    await websocket.send_json({
+                        'type': 'PdfData',
+                        'file_name': pdf_file.name,
+                        'pdf_data': pdf_data,
+                    })
+
+                    # 等待客户端确认
+                    ack = await websocket.receive_text()
+                    assert ack == 'ACK', f'预期 ACK，实际收到: {ack}'
+
         except asyncio.CancelledError:
+            raise
+        except WebSocketDisconnect as e:
             raise
         except Exception as e:
             logger.error(f'发送pdf失败 {traceback.format_exc(chain=False)}')

@@ -8,7 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 from logger import logger
 
 
-async def goodbye(websocket, msg_obj: dict):
+async def goodbye(websocket, msg_obj: dict):  # 之后特殊的结束提示
     await websocket.send_json(msg_obj)
     await websocket.close()  # 关闭连接
 
@@ -17,6 +17,7 @@ class HeartBeatTask:
     def __init__(self, websocket: WebSocket):
         self.websocket = websocket
         self.heartbeat_sec = 5
+        self.send_lock = asyncio.Lock()
 
     @abc.abstractmethod
     async def on_heartbeat(self, data):
@@ -39,9 +40,11 @@ class HeartBeatTask:
         try:
             while not task.done():
                 # 获取进度
-                data = {'type': 'Heartbeat'}
-                await self.on_heartbeat(data)
-                await websocket.send_json(data)  # 发送心跳消息
+                async with self.send_lock:
+                    data = {'type': 'Heartbeat'}
+                    await self.on_heartbeat(data)
+                    await websocket.send_json(data)  # 发送心跳消息
+
                 await asyncio.sleep(self.heartbeat_sec)
 
             # 任务完成或退出
