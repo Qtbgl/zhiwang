@@ -60,6 +60,7 @@ class SearchTask(HeartBeatTask):
             except asyncio.CancelledError:
                 logger.debug(f'main_task被取消，一块取消pdf_task')
                 pdf_task.cancel()
+                raise
             finally:
                 await pdf_task
 
@@ -68,7 +69,7 @@ class SearchTask(HeartBeatTask):
 
     async def on_finish(self, data):
         # 任务执行结果
-        data['data'] = self.record.deliver_pubs()
+        data['result'] = self.record.deliver_pubs()
 
     async def _gather_pdf(self, main_task: asyncio.Task):
         while not main_task.done():

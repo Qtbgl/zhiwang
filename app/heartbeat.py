@@ -9,6 +9,7 @@ from logger import logger
 
 
 async def goodbye(websocket, msg_obj: dict):  # 之后特殊的结束提示
+    msg_obj['type'] = 'Goodbye'
     await websocket.send_json(msg_obj)
     await websocket.close()  # 关闭连接
 
@@ -48,11 +49,11 @@ class HeartBeatTask:
                 await asyncio.sleep(self.heartbeat_sec)
 
             # 任务完成或退出
-            data = {'type': 'Result', 'error': None}
+            data = {'error': None}
             try:
                 await task
             except Exception as e:
-                logger.error(f'heartbeat吸收异常: {traceback.format_exc()}')
+                logger.error(f'服务端层吸收异常: {traceback.format_exc()}')
                 data['error'] = str(e)
 
             await self.on_finish(data)
@@ -61,7 +62,7 @@ class HeartBeatTask:
         except WebSocketDisconnect as e:
             logger.error(f"Connection closed: {type(e)} {e}")
         except Exception as e:
-            logger.error(f"Unexpected Error: {type(e)} {e} \n{traceback.format_exc()}")
+            logger.error(f"Unexpected Error: {type(e)} {e} {traceback.format_exc()}")
             try:
                 await websocket.close()
             except Exception as e:
@@ -74,3 +75,5 @@ class HeartBeatTask:
                     await asyncio.wait_for(task, timeout=60)  # 限定时间等待
                 except asyncio.CancelledError:
                     logger.info("Task was cancelled!")
+                except Exception as e:
+                    logger.error(f"Unexpected Error: {traceback.format_exc()}")
